@@ -1,9 +1,10 @@
-#include <omp.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
 #include <assert.h>
+
+typedef long long int ll;
 
 double random_double(double minval, double maxval) {
 	return minval + ((double)rand() / (double)RAND_MAX) * (maxval - minval);
@@ -12,15 +13,14 @@ double random_double(double minval, double maxval) {
 int main (int argc, char *argv[])
 {
 	assert (argc == 2);
-	int times = atoi(argv[1]);
+	ll N = atoll(argv[1]);
 	srand(time(0));
-	int N = 0;
-	int count = 0;
+	ll count = 0;
+	ll times = N;
 	while (times--) {
 		double x = random_double(-1.,1);
 		double y = random_double(-1.,1);
 		if (x * x + y * y <= 1) count++;
-		N++;
 	}
-	printf("%.4lf\n", (double) count / (double) N * 4.);
+	printf("%.10lf\n", (double) count / (double) N * 4.);
 }

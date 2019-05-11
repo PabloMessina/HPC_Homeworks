@@ -30,7 +30,6 @@ int main (int argc, char *argv[])
 		int thread_i = omp_get_thread_num(); // get thread number
 		assert (thread_i < n_threads); 
 		unsigned int s = seeds[thread_i]; // obtain local seed
-		// printf("thread_i = %d, s = %u\n", thread_i, s); // debugging
 		
 		#pragma omp for reduction(+:count)
 		for (int i = 0; i < N; ++i) {
@@ -39,5 +38,5 @@ int main (int argc, char *argv[])
 			if (x * x + y * y <= 1) count++;
 		}
 	}
-	printf("count = %d, N = %lld, %.4lf\n", count, N, (double)count / (double) N * 4.);
+	printf("%.10lf\n", (double)count / (double) N * 4.);
 }

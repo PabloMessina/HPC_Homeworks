@@ -5,6 +5,8 @@
 #include <assert.h>
 
 #define N 2000000
+typedef long long int ll;
+
 int nums[N];
 
 double PI, MU, SIGMA, _COEF1, _COEF2;
@@ -46,15 +48,15 @@ int main (int argc, char *argv[])
 	srand(time(0));
 	
 	// ----- STEP 1: estimate PI constant -----
-	int count = 0;
-	int pi_iterations = atoi(argv[1]);
-	for (int i = 0; i < pi_iterations; ++i) {
-		double x = random_double(-1.,1);
-		double y = random_double(-1.,1);
+	ll count = 0;
+	ll pi_iterations = atoll(argv[1]);
+	for (ll i = 0; i < pi_iterations; ++i) {
+		double x = random_double(-1.,1.);
+		double y = random_double(-1.,1.);
 		if (x * x + y * y <= 1) count++;
 	}
 	PI = (double)count / (double)pi_iterations * 4.;
-	printf("PI = %lf\n", PI);
+	printf("PI %lf\n", PI);
 
 	// ----- STEP 2: estimate MU and SIGMA -----
 	MU = 0.;
@@ -69,11 +71,11 @@ int main (int argc, char *argv[])
 		SIGMA += tmp * tmp;
 	}
 	SIGMA = sqrt(SIGMA / N);
-	printf("MU=%lf, SIGMA=%lf\n", MU, SIGMA);
+	printf("MU %lf\nSIGMA %lf\n", MU, SIGMA);
 
-	// ----- STEP 3: computer numerica integration ----
+	// ----- STEP 3: compute numerical integration ----
 	_COEF1 = 1. / sqrt(2. * PI * SIGMA * SIGMA);
 	_COEF2 = - 1. / (2. * SIGMA * SIGMA);
 	int steps = atoi(argv[2]);
-	printf("integral = %lf\n", _COEF1 * integrate(MU - SIGMA, MU + SIGMA, func, steps));
+	printf("integral %lf\n", _COEF1 * integrate(MU - SIGMA, MU + SIGMA, func, steps));
 }

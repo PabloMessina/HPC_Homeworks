@@ -6,6 +6,8 @@
 #include <omp.h>
 
 #define N 2000000
+typedef long long int ll;
+
 int nums[N];
 
 double PI, MU, SIGMA, _COEF1, _COEF2;
@@ -63,13 +65,13 @@ int main (int argc, char *argv[])
 	for (int i = 0; i < n_threads; ++i) seeds[i] = rand();
 	
 	// ----- STEP 1: estimate PI constant -----
-	int count = 0;	
-	int pi_iterations = atoi(argv[1]);
+	ll count = 0;	
+	ll pi_iterations = atoll(argv[1]);
 	#pragma omp parallel default(none) shared(pi_iterations, count, seeds)
 	{
 		unsigned int s = seeds[omp_get_thread_num()];
 		#pragma omp for reduction(+:count)
-		for (int i = 0; i < pi_iterations; ++i) {
+		for (ll i = 0; i < pi_iterations; ++i) {
 			double x = random_double(-1.,1, &s);
 			double y = random_double(-1.,1, &s);
 			if (x * x + y * y <= 1) count++;
@@ -102,7 +104,7 @@ int main (int argc, char *argv[])
 	SIGMA = sqrt(SIGMA / N);
 	printf("MU=%lf, SIGMA=%lf\n", MU, SIGMA);
 
-	// ----- STEP 3: computer numerica integration ----
+	// ----- STEP 3: compute numerical integration ----
 	_COEF1 = 1. / sqrt(2. * PI * SIGMA * SIGMA);
 	_COEF2 = - 1. / (2. * SIGMA * SIGMA);
 	int steps = atoi(argv[2]);
