@@ -9,6 +9,7 @@
 int world_rank;
 int world_size;
 
+const unsigned char IGNOREME = 0;
 int N;
 int* VALUES;
 int* ACCSUMS;
@@ -37,12 +38,12 @@ void BitSet_free(BitSet* bs) {
     free(bs);
 }
 void BitSet_setbit(BitSet* bs, int i, bool val) {
-    // assert (i < bs->size);
+    assert (i < bs->size);
     if (val) bs->bits[i >> 3] |= 1 << (i & 7);
     else bs->bits[i >> 3] &= ~(1 << (i & 7));
 }
 bool BitSet_getbit(BitSet* bs, int i) {
-    // assert (i < bs->size);
+    assert (i < bs->size);
     return bs->bits[i >> 3] & (1 << (i & 7));
 }
 BitSet* BitSet_copy(BitSet* bs) {
@@ -85,7 +86,7 @@ bool PartialSolution_complete(PartialSolution* ps) {
     return ps->index == N;
 }
 void PartialSolution_setnextbit(PartialSolution* ps, bool val) {
-    // assert (ps->index < N);
+    assert (ps->index < N);
     int i = ps->index++;
     BitSet_setbit(ps->bitset, i, val);
     if (val) ps->partial_sum += VALUES[i];
@@ -116,6 +117,7 @@ int Queue_size(Queue* q) {
 }
 void Queue_push(Queue* q, void* item) {
     if (q->rear + 1 == q->cap) { // duplicate capacity if we run out of capacity
+        printf("duplicating queue!");
         int new_cap = q->cap * 2;
         void** new_items = malloc(new_cap * sizeof(void*));
         int size = Queue_size(q);
@@ -155,7 +157,7 @@ PartialSolution* bfs(Queue** q_ptr) {
     Queue_push(q, ps);
     while (0 < Queue_size(q) && Queue_size(q) < min_n_jobs) {
         ps = Queue_pop(q);
-        // assert(PartialSolution_complete(ps) == false);
+        assert(PartialSolution_complete(ps) == false);
         
         // option 1: pick next item
         PartialSolution* ps1 = PartialSolution_copy(ps);
@@ -176,8 +178,8 @@ PartialSolution* bfs(Queue** q_ptr) {
         // option 2: skip next item
         PartialSolution* ps2 = PartialSolution_copy(ps);
         PartialSolution_setnextbit(ps2, false);
-        // assert (ps2->partial_sum == ps->partial_sum);
-        // assert (ps2->partial_sum < TARGET_SUM);
+        assert (ps2->partial_sum == ps->partial_sum);
+        assert (ps2->partial_sum < TARGET_SUM);
         if (PartialSolution_complete(ps2)) {
             PartialSolution_free(ps2);
         } else {
@@ -205,7 +207,7 @@ void print_solution(BitSet* sol) {
 // -------- Backtracking (SERIAL) ------
 bool search(BitSet* sol, int i, int partial_sum) {
     if (i == N) return partial_sum == TARGET_SUM;
-    // assert (i < N);    
+    assert (i < N);    
     if (partial_sum + ACCSUMS[i] < TARGET_SUM) // pruning
         return false;
     // option 1: include i-th value
@@ -230,15 +232,16 @@ unsigned int polling_count = 0;
 
 bool search_parallel(BitSet* sol, int i, int partial_sum) {
     if (i == N) return partial_sum == TARGET_SUM;
-    // assert (i < N);
+    assert (i < N);
     if (partial_sum + ACCSUMS[i] < TARGET_SUM) // pruning
         return false;
     // check if someone else already solved the problem so we can stop
-    if (!(++polling_count & 255)) { // test every 256 iterations
+    if (!(++polling_count & 1023)) { // test every 1024 iterations
         MPI_Test(&search_request, &search_flag, &search_status);
         if (search_flag) {
+            // printf("worker %d: getting interrupted!\n", world_rank);
             search_interrupted = true;
-            return false;
+            return true;
         }
     }
     // option 1: include i-th value
@@ -274,16 +277,18 @@ void read_input() {
 
 int main(int argc, char** argv) {
     // initialize the MPI environment
-    MPI_Init(NULL, NULL);
+    MPI_Init(&argc, &argv);
 
     // find out world rank and size
-    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);    
+    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
     MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+
+    // printf("world_rank=%d, world_size=%d\n", world_rank, world_size);
 
     // ==============================
     // special case: a single process
     if (world_size == 1) {
-        // assert (world_rank == 0);
+        assert (world_rank == 0);
         read_input(); // read input from stdin
         // execute a serial backtracking
         BitSet* sol = BitSet_init(N);
@@ -299,7 +304,7 @@ int main(int argc, char** argv) {
     // ==============================
     // general case: 2+ processes
     bool done;
-    if (world_rank == 0) {        
+    if (world_rank == 0) {
         read_input(); // read input from stdin
         // execute initial BFS        
         Queue* q;
@@ -363,7 +368,7 @@ int main(int argc, char** argv) {
                 if (length > 0 && first_sol == NULL) {
                     first_sol = BitSet_copy(tmp);
                     done = true;
-                    // puts("  ***** ROOT::solution found! MPI_Ibcast-ing!");
+                    // printf("  ***** ROOT::solution found by worker %d! MPI_Ibcast-ing!\n", status.MPI_SOURCE);
                     MPI_Ibcast(&done, 1, MPI_C_BOOL, 0, MPI_COMM_WORLD, &search_request);
                 }
             }
@@ -401,19 +406,24 @@ int main(int argc, char** argv) {
             rep(i,0,chunk_size-1) {
                 if (search_parallel(sols[i], indexes[i], partial_sums[i])) {
                     found_sol = sols[i]; break;
-                } else if (search_interrupted) break;
+                }
             }
+            // printf("worker %d: search_interrupted = %d\n", world_rank, search_interrupted);
             // 4) send solution found to root
-            if (found_sol != NULL) {
-                MPI_Send(found_sol->bits, found_sol->n_bytes,
+            // printf("worker %d: BEFORE sending\n", world_rank);
+            if (found_sol == NULL || search_interrupted) {                
+                MPI_Send(&IGNOREME, 0,
                         MPI_UNSIGNED_CHAR, 0, SOLUTION_FOUND_TAG, MPI_COMM_WORLD);
             } else {
-                MPI_Send(NULL, 0,
+                MPI_Send(found_sol->bits, found_sol->n_bytes,
                         MPI_UNSIGNED_CHAR, 0, SOLUTION_FOUND_TAG, MPI_COMM_WORLD);
             }
+            // printf("worker %d: AFTER sending\n", world_rank);
         }
     }
     
+    // printf("worker %d: BEFORE MPI_Finalize()\n", world_rank);
     MPI_Finalize();
+    // printf("worker %d: AFTER MPI_Finalize()\n", world_rank);
     return 0;
 }
